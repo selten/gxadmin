@@ -2415,3 +2415,38 @@ query_upload-gb-in-past-hour() { ## [hours|1]: Sum in bytes of files uploaded in
 			AND job.create_time AT TIME ZONE 'UTC' > (now() - '$hours hours'::INTERVAL)
 EOF
 }
+
+query_server-workflow-invocations-by-workflow() {
+	handle_help "$@" <<-EOF
+	EOF
+
+	op="="
+	if (( $# > 1 )); then
+		op="$2"
+	fi
+
+	date_filter=""
+	if (( $# > 0 )); then
+		date_filter="WHERE date_trunc('day', create_time AT TIME ZONE 'UTC') $op '$1'::date"
+	fi
+
+	fields="count=2"
+	tags="workflow_id=0;workflow_name=1"
+
+	read -r -d '' QUERY <<-EOF
+		with wf_count AS (
+			SELECT workflow_id,
+				COUNT(workflow_id)
+			FROM workflow_invocation
+			$date_filter
+			GROUP BY workflow_id
+		)
+
+		SELECT wf.id as workflow_id,
+			wf.name as workflow_name,
+			COALESCE(wf_count.count, 0) as workflow_invoke_count
+		FROM workflow wf
+		FULL OUTER JOIN wf_count ON wf.id = wf_count.workflow_id
+	EOF
+}
+
